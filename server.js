@@ -1,45 +1,45 @@
-var express = require('express');
-var fs      = require('fs');
-var request = require('request');
-var cheerio = require('cheerio');
-var app     = express();
+const express = require('express');
+const fs = require('fs').promises; // Using promises for async file operations
+const request = require('request-promise-native'); // Use request-promise for async/await
+const cheerio = require('cheerio');
+const app = express();
 
-app.get('/scrape', function(req, res){
-  // Let's scrape Anchorman 2
-  url = 'http://www.imdb.com/title/tt1229340/';
+app.get('/scrape', async (req, res) => {
+  try {
+    // URL for Anchorman 2
+    const url = 'http://www.imdb.com/title/tt1229340/';
 
-  request(url, function(error, response, html){
-    if(!error){
-      var $ = cheerio.load(html);
+    const html = await request(url);
+    const $ = cheerio.load(html);
 
-      var title, release, rating;
-      var json = { title : "", release : "", rating : ""};
+    // Initialize data object
+    let json = { title: "", release: "", rating: "" };
 
-      $('.title_wrapper').filter(function(){
-        var data = $(this);
-        title = data.children().first().text().trim();
-        release = data.children().last().children().last().text().trim();
+    $('.hero__primary-text').filter(function () {
+      json.title = $(this).text().trim();
+    });
 
-        json.title = title;
-        json.release = release;
-      })
+    $('[data-testid="hero__sub-section"]').filter(function () {
+      const releaseData = $(this).find('a[href*="/releaseinfo"]').text().trim();
+      json.release = releaseData;
+    });
 
-      $('.ratingValue').filter(function(){
-        var data = $(this);
-        rating = data.text().trim();
+    $('[data-testid="hero-rating-bar__aggregate-rating__score"]').filter(function () {
+      json.rating = $(this).text().trim();
+    });
 
-        json.rating = rating;
-      })
-    }
+    await fs.writeFile('output.json', JSON.stringify(json, null, 4));
+    console.log('File successfully written! Check output.json in your project directory');
 
-    fs.writeFile('output.json', JSON.stringify(json, null, 4), function(err){
-      console.log('File successfully written! - Check your project directory for the output.json file');
-    })
+    res.send('Scraping complete! Check output.json file!');
+  } catch (error) {
+    console.error('Error during scraping:', error);
+    res.status(500).send('Error during scraping. Check server logs for details.');
+  }
+});
 
-    res.send('Check your console!')
-  })
-})
+app.listen(8081, () => {
+  console.log('Server running on port 8081');
+});
 
-app.listen('8081')
-console.log('Magic happens on port 8081');
-exports = module.exports = app;
+module.exports = app;
